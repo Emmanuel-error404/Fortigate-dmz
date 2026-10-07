@@ -1,0 +1,139 @@
+#!/bin/bash
+# =====================================================================
+# Script de servidores - Infraestructura 1 (DMZ 192.168.98.0/28)
+#
+# Uso:  sudo bash srv-setup.sh <rol> <fase> [interfaz]
+#   rol    : caja | inventario | db
+#   fase   : install -> con el servidor conectado al Cloud (ens33 con Internet)
+#                       solo instala paquetes, NO toca la red
+#            dmz     -> con el servidor conectado al switch (DMZ)
+#                       configura IP, servicios y ufw
+#   interfaz (solo fase dmz): por defecto ens33
+#
+# Ejemplos:
+#   sudo bash srv-setup.sh caja install
+#   sudo bash srv-setup.sh caja dmz ens33
+# =====================================================================
+ROLE="${1:-}"; MODE="${2:-}"; IFACE="${3:-ens33}"
+GW="192.168.98.1"
+
+[ "$(id -u)" -ne 0 ] && { echo "Ejecute con sudo"; exit 1; }
+
+case "$ROLE" in
+  caja)       HOST="srv-caja";       IP="192.168.98.2"; TITLE="SISTEMA DE CAJA";       COLOR="#e8f5e9" ;;
+  inventario) HOST="srv-inventario"; IP="192.168.98.3"; TITLE="SISTEMA DE INVENTARIO"; COLOR="#e3f2fd" ;;
+  db)         HOST="srv-db";         IP="192.168.98.4" ;;
+  *) echo "Uso: sudo bash $0 <caja|inventario|db> <install|dmz> [interfaz]"; exit 1 ;;
+esac
+
+# ---------------------------------------------------------------------
+# FASE 1: instalacion de paquetes (usa el Internet del Cloud, no cambia red)
+# ---------------------------------------------------------------------
+if [ "$MODE" = "install" ]; then
+  hostnamectl set-hostname "$HOST"
+  apt-get update
+  if [ "$ROLE" = "db" ]; then
+    apt-get install -y mariadb-server openssh-server ufw curl net-tools
+  else
+    apt-get install -y apache2 openssh-server ufw curl net-tools
+  fi
+  echo
+  echo ">> Instalacion lista. Apague el servidor, conectelo al switch y ejecute:"
+  echo ">> sudo bash $0 $ROLE dmz $IFACE"
+  exit 0
+fi
+
+# ---------------------------------------------------------------------
+# FASE 2: configuracion en la DMZ
+# ---------------------------------------------------------------------
+if [ "$MODE" != "dmz" ]; then
+  echo "Fase invalida. Use install o dmz"; exit 1
+fi
+
+if ! ip link show "$IFACE" >/dev/null 2>&1; then
+  echo "La interfaz $IFACE no existe. Interfaces disponibles:"
+  ip -br link
+  exit 1
+fi
+
+echo "[1/4] Red: $IP/28 en $IFACE (sin borrar los otros archivos de netplan)"
+hostnamectl set-hostname "$HOST"
+cat > /etc/netplan/99-lab-dmz.yaml <<NETPLAN
+network:
+  version: 2
+  ethernets:
+    $IFACE:
+      dhcp4: false
+      addresses: [$IP/28]
+      routes:
+        - to: 0.0.0.0/0
+          via: $GW
+      nameservers:
+        addresses: [8.8.8.8]
+NETPLAN
+chmod 600 /etc/netplan/99-lab-dmz.yaml
+netplan apply
+
+echo "[2/4] Servicio"
+if [ "$ROLE" = "db" ]; then
+  if command -v mariadbd >/dev/null 2>&1 || command -v mysqld >/dev/null 2>&1; then
+    sed -i 's/^bind-address.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf 2>/dev/null
+    systemctl enable --now mariadb
+    mysql -e "CREATE DATABASE IF NOT EXISTS lab_db;
+              CREATE USER IF NOT EXISTS 'app'@'192.168.98.%' IDENTIFIED BY 'Lab12345!';
+              GRANT ALL ON lab_db.* TO 'app'@'192.168.98.%';
+              FLUSH PRIVILEGES;"
+    systemctl restart mariadb
+  else
+    echo "AVISO: MariaDB no esta instalado. Ejecute primero la fase install con el Cloud."
+  fi
+else
+  mkdir -p /var/www/html
+  cat > /var/www/html/index.html <<HTML
+<html><head><meta charset="utf-8"><title>$TITLE</title></head>
+<body style="font-family:Arial;text-align:center;padding-top:80px;background:$COLOR;">
+<h1>$TITLE</h1>
+<h3>Servidor: $HOST - $IP</h3>
+</body></html>
+HTML
+  if command -v apache2 >/dev/null 2>&1; then
+    systemctl enable --now apache2
+  else
+    echo "Apache no esta instalado: usando servidor Python en el puerto 80"
+    cat > /etc/systemd/system/web-lab.service <<UNIT
+[Unit]
+Description=Web lab (Python)
+After=network.target
+[Service]
+ExecStart=/usr/bin/python3 -m http.server 80 --directory /var/www/html
+Restart=always
+[Install]
+WantedBy=multi-user.target
+UNIT
+    systemctl daemon-reload
+    systemctl enable --now web-lab
+  fi
+fi
+
+echo "[3/4] SSH"
+systemctl enable --now ssh 2>/dev/null || systemctl enable --now sshd 2>/dev/null
+
+echo "[4/4] Firewall local (ufw)"
+ufw --force reset >/dev/null
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow from 10.7.98.128/25 to any port 22 proto tcp          # SSH solo VLAN 20
+if [ "$ROLE" = "db" ]; then
+  ufw allow from 192.168.98.2 to any port 3306 proto tcp        # Caja -> DB
+  ufw allow from 192.168.98.3 to any port 3306 proto tcp        # Inventario -> DB
+else
+  ufw allow from 10.7.98.0/24 to any port 80 proto tcp          # HTTP usuarios
+  ufw allow from 10.7.98.0/24 to any port 443 proto tcp         # HTTPS usuarios
+fi
+ufw --force enable
+
+echo
+echo "Listo. Verificacion:"
+ip -br a
+ip route
+ss -tlnp | grep -E ':(22|80|3306)\b'
