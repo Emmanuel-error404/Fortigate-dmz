@@ -1,0 +1,15 @@
+! Configuracion aplicada en R1 (ISP). Reemplazar por la salida de "show running-config".
+hostname ISP-R1
+no ip domain-lookup
+interface FastEthernet0/0
+ description Enlace hacia FortiGate Port2
+ ip address 200.7.98.1 255.255.255.252
+ no shutdown
+interface Loopback1
+ description Endpoint de actualizacion simulado
+ ip address 200.7.98.10 255.255.255.255
+interface Loopback2
+ description Internet simulado
+ ip address 8.8.8.8 255.255.255.255
+ip route 10.7.98.0 255.255.255.0 200.7.98.2
+ip route 192.168.98.0 255.255.255.240 200.7.98.2
