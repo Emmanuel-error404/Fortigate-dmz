@@ -20,7 +20,6 @@ Implementar una red con una **DMZ** protegida por un **FortiGate** (configurado 
 
 ## Topologia
 
-![Topologia](images/00-topologia.png)
 
 ```mermaid
 graph TD
@@ -46,7 +45,6 @@ graph TD
 
 ## Politicas del FortiGate
 
-![Politicas](images/05-fg-politicas.png)
 
 | # | Politica | Flujo | Accion |
 |---|---|---|---|
