@@ -2,8 +2,7 @@
 
 ## Video demostrativo
 
-> **[PENDIENTE: pegar aqui el enlace del video (YouTube / OneDrive institucional)]**
-> Duracion maxima 10 minutos, con fecha y hora visibles, rostro y voz.
+> https://www.youtube.com/watch?v=yBpSE940f4U
 
 ---
 
@@ -61,19 +60,5 @@ graph TD
 | 9 | ALLOW-SSH-VLAN20-A-SRV | v20 a servidores (SSH) | ACCEPT |
 | 10 | ALLOW-WEB-V20-SRV | v20 a Caja e Inventario | ACCEPT |
 
-## Documentacion
 
-- [Documentacion tecnica completa (Word)](docs/Documentacion-Tecnica-P1.docx)
-- [Script de servidores](scripts/srv-setup.sh)
-- [Configuraciones](running-configs/)
-- [Capturas](images/)
-
-## Estructura del repositorio
-
-```
-README.md
-docs/            documentacion tecnica
-images/          capturas y diagrama
-scripts/         srv-setup.sh
-running-configs/ R1, switches y FortiGate
 ```
