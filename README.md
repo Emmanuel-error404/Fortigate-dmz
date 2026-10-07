@@ -6,7 +6,7 @@
 
 ---
 
-**Estudiante:** [Nombre] | **Matricula:** 20250798 | **Plataforma:** GNS3
+**Estudiante:** Emmanuel Orlando Rodriguez | **Matricula:** 20250798 | **Plataforma:** GNS3
 
 ## Proposito del laboratorio
 
