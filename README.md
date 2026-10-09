@@ -59,5 +59,4 @@ graph TD
 | 10 | ALLOW-WEB-V20-SRV | v20 a Caja e Inventario | ACCEPT |
 
 
-```
-toda informacion extra dentro de la documentacion
+toda informacion extra dentro de la documentacion /Documentacion-Tecnica-p.3.pdf
